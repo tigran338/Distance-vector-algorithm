@@ -108,21 +108,22 @@ def accept_connections():
         client_thread.start()
 
 def handle_client(client_socket, client_address):
-    while not exit:
+    while True:
         try:
             data = client_socket.recv(1024)
-        except:
-            return
-        if not data:
-            connections.remove((client_socket, client_address))
-            print(f"Connection closed: {client_address}")
-            break
-        else:
-            if data.decode() == "Close Connection":
-                connections.remove((client_socket,client_address))
-                print(f"Connection with {client_address} terminated")
+            if not data:
+                connections.remove((client_socket, client_address))
+                print(f"Connection closed: {client_address}")
+                break
             else:
-                print(f"Received message from {client_address}: {data.decode()}")
+                if data.decode() == "Close Connection":
+                    connections.remove((client_socket,client_address))
+                    print(f"Connection with {client_address} terminated")
+                else:
+                    print(f"Received message from {client_address}: {data.decode()}")
+        except Exception as e:
+            print(f"Error while handling client {client_address}: {e}")
+            break
 
 def send_message(connection_id, message):
     connection = connections[connection_id]
@@ -156,7 +157,15 @@ if __name__ == "__main__":
     # Display the topology
     display_dv_table()
     connect_to_neighbors()
-    accept_connections()
+
+    accept_thread = threading.Thread(target=accept_connections, daemon=True)
+    accept_thread.start()
+
+    while True:
+        pass
+
+
+    '''
     while True:
         neighbor_id = int(input("Enter neighbor_id: "))
         num_servers = len(servers)
@@ -166,3 +175,4 @@ if __name__ == "__main__":
             neighborTable[server_id] = cost
         update_dv_table(neighbor_id, neighborTable)
         display_dv_table()
+    '''
