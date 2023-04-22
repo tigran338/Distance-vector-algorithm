@@ -5,8 +5,7 @@ import sys
 import time
 
 #Server connected variables
-connections = []
-
+connections = {}
 
 #Distance vector Algoritm variables
 max_int32 = 2 ** 31 - 1
@@ -93,7 +92,7 @@ def start_server():
 
 #SERVER PART
 def accept_connections():
-    global servers
+    global servers, connections
     port = servers[myid]['port']
     ip = servers[myid]['ip']
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -102,28 +101,30 @@ def accept_connections():
     print(f"Server started and listening on port {port}")
     while True:
         client_socket, client_address = server_socket.accept()
-        connections.append((client_socket, client_address))
+
+        # Find the server ID associated with the incoming connection
+        for server_id, server_info in servers.items():
+            # Compare IP and port of the connected client and the server info
+            print(f"ip {client_address[0]} port {client_address[1]}")
+            if server_info['ip'] == client_address[0] and server_info['port'] == client_address[1]:
+                connections[server_id] = (client_socket, client_address)
+                break
+
         print(f"New connection from {client_address}")
-        client_thread = threading.Thread(target=handle_client, args=(client_socket, client_address))
+        client_thread = threading.Thread(target=handle_client, args=(client_socket, client_address, None))
         client_thread.start()
 
-def handle_client(client_socket, client_address):
+def handle_client(client_socket, client_address, server_id):
+    if not server_id:
+        data = client_socket.recv(1024)
+        server_id = int(data.strip())
+
+    connections[server_id] = (client_socket, client_address)
     while True:
-        try:
-            data = client_socket.recv(1024)
-            if not data:
-                connections.remove((client_socket, client_address))
-                print(f"Connection closed: {client_address}")
-                break
-            else:
-                if data.decode() == "Close Connection":
-                    connections.remove((client_socket,client_address))
-                    print(f"Connection with {client_address} terminated")
-                else:
-                    print(f"Received message from {client_address}: {data.decode()}")
-        except Exception as e:
-            print(f"Error while handling client {client_address}: {e}")
-            break
+        data = client_socket.recv(1024)
+        print(f"Received message from {client_address}: {data.decode()}")
+        display_connections()
+        
 
 def send_message(connection_id, message):
     connection = connections[connection_id]
@@ -133,10 +134,22 @@ def send_message(connection_id, message):
 def connect_to(address, port):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect((address, port))
-    connections.append((client_socket, (address, port)))
-    print(f"Connected to {address}:{port}")
-    client_thread = threading.Thread(target=handle_client, args=(client_socket, (address, port)))
-    client_thread.start()
+    server_id = None
+
+    # Find server ID based on the address and port
+    for key, value in servers.items():
+        if value['ip'] == address and value['port'] == port:
+            server_id = key
+            break
+
+    # If the server ID is found, update the connections dictionary
+    if server_id:
+        print(f"Connected to {address}:{port}")
+        client_thread = threading.Thread(target=handle_client, args=(client_socket, (address, port), server_id))
+        client_thread.start()
+        send_message(server_id, str(myid))
+    else:
+        print("Could not find server ID for given address and port")
 
 
 def connect_to_neighbors():
@@ -148,6 +161,15 @@ def connect_to_neighbors():
                 print(str(neighbor_id))
         except:
             print(f"Was no able to connect to {neighbor_id} server") 
+
+
+
+#Debug
+def display_connections():
+    print("Current connections:")
+    for server_id, connection_info in connections.items():
+        print(f"Server ID: {server_id} - Address: {connection_info[1]}")
+              
 
 #Main part
 if __name__ == "__main__":
@@ -163,6 +185,8 @@ if __name__ == "__main__":
 
     while True:
         pass
+
+
 
 
     '''
