@@ -4,10 +4,10 @@ import threading
 import sys
 import time
 
-#Server connected variables
+# Server connected variables
 connections = {}
 
-#Distance vector Algoritm variables
+# Distance vector Algoritm variables
 max_int32 = 2 ** 31 - 1
 myid = None
 servers = None
@@ -16,7 +16,8 @@ dv_table = {}
 
 
 
-
+# Distance vector Algoritm variables paert
+#______________________________________________________________________________________
 def read_topology(file_path):
     global myid, servers, row_table, dv_table, max_int32
     with open(file_path, 'r') as file:
@@ -81,16 +82,25 @@ def update_dv_table(neighbor_id:int, neighborTable:dict):
     
     for server_id in servers:
         dv_table[myid][server_id] = min(dv_table[myid][server_id], dv_table[myid][neighbor_id] + dv_table[neighbor_id][server_id])
+
+    display_dv_table()
     
     
 
-def start_server():
-    pass   
+def step():
+    global myid, servers, connections
+    for connection_id in connections:
+        message = f"TABLE {myid}"
+        for server_id, cost in dv_table[myid].items():
+            message += f" {server_id}:{cost}"
+        send_message(connection_id, message)
+        print(f"Sent distance vector row to server {connection_id}")
 
 
 
 
 #SERVER PART
+#______________________________________________________________________________________
 def accept_connections():
     global servers, connections
     port = servers[myid]['port']
@@ -120,10 +130,22 @@ def handle_client(client_socket, client_address, server_id):
         server_id = int(data.strip())
 
     connections[server_id] = (client_socket, client_address)
+    print(f"Connected to server {server_id}")
     while True:
         data = client_socket.recv(1024)
-        print(f"Received message from {client_address}: {data.decode()}")
-        display_connections()
+        if data:
+            message = data.decode()
+            if message.startswith("TABLE"):
+                message_parts = message.split(" ")
+                sender_id = int(message_parts[1])
+                neighbor_table = {}
+                for table_entry in message_parts[2:]:
+                    server_id, cost = map(int, table_entry.split(":"))
+                    neighbor_table[server_id] = cost
+                update_dv_table(sender_id, neighbor_table)
+            else:
+                print(f"Received message from {client_address}: {message}")
+            display_connections()
         
 
 def send_message(connection_id, message):
@@ -184,12 +206,20 @@ if __name__ == "__main__":
     accept_thread.start()
 
     while True:
-        pass
+        command = input("Enter command: ")
+
+        if command == 'step':
+            step()
+            '''
+        elif command.split(' ')[0] == 'update':
+            try:
+                dv_table[int(command.split(' ')[1])][int(command.split(' ')[2])] = int(command.split(' ')[3]) 
+            except:
+                print("Wrong input")
 
 
 
-
-    '''
+    
     while True:
         neighbor_id = int(input("Enter neighbor_id: "))
         num_servers = len(servers)
