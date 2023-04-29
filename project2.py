@@ -196,7 +196,8 @@ def display_connections():
 #Main part
 if __name__ == "__main__":
     # Read topology from file and store in servers and edges
-    read_topology('topology.txt')
+    
+    read_topology(input("Enter the topology file name: "))
 
     # Display the topology
     display_dv_table()
