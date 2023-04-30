@@ -14,7 +14,7 @@ servers = None
 row_table = None
 dv_table = {}
 
-
+packet_count = 0
 
 # Distance vector Algoritm variables paert
 #______________________________________________________________________________________
@@ -95,9 +95,9 @@ def step():
             message += f" {server_id}:{cost}"
         send_message(connection_id, message)
         print(f"Sent distance vector row to server {connection_id}")
-
-
-
+        packet_count += 1
+    print(f"Sent {packet_count} packets in this step")
+    packet_count = 0
 
 #SERVER PART
 #______________________________________________________________________________________
@@ -211,15 +211,14 @@ if __name__ == "__main__":
 
         if command == 'step':
             step()
+        elif command == 'packets':
+            print(f"Total packets sent: {packet_count}")
             '''
         elif command.split(' ')[0] == 'update':
             try:
                 dv_table[int(command.split(' ')[1])][int(command.split(' ')[2])] = int(command.split(' ')[3]) 
             except:
                 print("Wrong input")
-
-
-
     
     while True:
         neighbor_id = int(input("Enter neighbor_id: "))
