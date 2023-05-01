@@ -13,57 +13,86 @@ myid = None
 servers = None
 row_table = None
 dv_table = {}
-
+topology = None
 packet_count = 0
+
+
+
+# NetworkTopology input
+#_____________________________________________________________________________________
+class NetworkTopology:
+    def __init__(self, servers, neighbors):
+        self.servers = set(servers)
+        self.neighbors = set(neighbors)
+
+
+
+
+def update_topology(add_element):
+    global topology
+    # Check if the second element exists in the set
+    existing_element = None
+    for e in topology.neighbors:
+        if e.split(' ')[1] == add_element.split(' ')[1]:
+            existing_element = e
+            break
+
+    # If the second element exists, remove it from the set
+    if existing_element:
+        topology.neighbors.remove(existing_element)
+
+    # Add the new element to the set
+    topology.neighbors.add(add_element)
+
+
 
 # Distance vector Algoritm variables paert
 #______________________________________________________________________________________
-def read_topology(file_path):
-    global myid, servers, row_table, dv_table, max_int32
-    with open(file_path, 'r') as file:
-        num_servers = int(file.readline().strip())
-        num_edges = int(file.readline().strip())
+def initialize_dv_table():
+    global myid, servers, row_table, dv_table, max_int32, topology
+    
 
-        servers = {}
-        for _ in range(num_servers):
-            server_id, ip, port = file.readline().strip().split()
-            servers[int(server_id)] = {'ip': ip, 'port': int(port)}
+    servers = {}
+    for line in topology.servers:
+        server_id, ip, port = line.strip().split()
+        servers[int(server_id)] = {'ip': ip, 'port': int(port)}
 
 
-        neighbor = set()
-        row_table = set()
-        # Update dv_table with costs from the file for the current server
-        for _ in range(num_edges):
-            server_id, neighbor_id, cost = map(int, file.readline().strip().split())
-            
-            neighbor.update([(server_id, neighbor_id, cost)])
-            row_table.add(server_id)
-            row_table.add(neighbor_id)
-            myid = server_id
-
-        for i in row_table:
-            dv_table[i] = {}
-            for key in servers.keys():
-                dv_table[i][key] = max_int32
-
-        for server_id, neighbor_id, cost in neighbor:
-            dv_table[server_id][neighbor_id] = cost
+    neighbor = set()
+    row_table = set()
+    # Update dv_table with costs from the file for the current server
+    for line in topology.neighbors:
+        server_id, neighbor_id, cost = map(int, line.strip().split())
         
-        dv_table[myid][myid] = 0
+        neighbor.update([(server_id, neighbor_id, cost)])
+        row_table.add(server_id)
+        row_table.add(neighbor_id)
+        myid = server_id
+
+    for i in row_table:
+        dv_table[i] = {}
+        for key in servers.keys():
+            dv_table[i][key] = max_int32
+
+    for server_id, neighbor_id, cost in neighbor:
+        dv_table[server_id][neighbor_id] = cost
+    
+    dv_table[myid][myid] = 0
+        
             
 def display_dv_table():
     global myid, servers, dv_table, max_int32
 
     print(f"\nDistance Vector Table for Server ID {myid}:")
-    header = "   |" + "|".join([f"{server_id:5}" for server_id in servers])
+    header = "   |" + "|".join([f"{server_id:5}" for server_id in sorted(servers)])
     separator = "----+" + "+".join(["-----"] * len(servers))
     print(header)
     print(separator)
 
-    for server_id in servers:
+    for server_id in sorted(servers):
         if server_id in dv_table:
             row = f"{server_id:3} |"
-            for neighbor_id in dv_table[server_id].keys():
+            for neighbor_id in sorted(dv_table[server_id].keys()):
                 cost = dv_table[server_id][neighbor_id]
                 if cost == max_int32:
                     cost_str = " inf "
@@ -83,7 +112,7 @@ def update_dv_table(neighbor_id:int, neighborTable:dict):
     for server_id in servers:
         dv_table[myid][server_id] = min(dv_table[myid][server_id], dv_table[myid][neighbor_id] + dv_table[neighbor_id][server_id])
 
-    display_dv_table()
+    
     
     
 
@@ -95,9 +124,9 @@ def step():
             message += f" {server_id}:{cost}"
         send_message(connection_id, message)
         print(f"Sent distance vector row to server {connection_id}")
-        packet_count += 1
-    print(f"Sent {packet_count} packets in this step")
-    packet_count = 0
+        #packet_count += 1  
+    #print(f"Sent {packet_count} packets in this step")
+    #packet_count = 0
 
 #SERVER PART
 #______________________________________________________________________________________
@@ -195,24 +224,47 @@ def display_connections():
 
 #Main part
 if __name__ == "__main__":
-    # Read topology from file and store in servers and edges
+
     
-    read_topology(input("Enter the topology file name: "))
-
-    # Display the topology
-    display_dv_table()
-    connect_to_neighbors()
-
-    accept_thread = threading.Thread(target=accept_connections, daemon=True)
-    accept_thread.start()
-
     while True:
         command = input("Enter command: ")
 
         if command == 'step':
             step()
+        elif command == 'display':
+            display_dv_table()
+        elif command.startswith('server -t'):
+            topology = NetworkTopology([],[])
+            filename = command.split(' ')[-1]  # get the last part of the string (the filename)
+            with open(filename) as file:
+                num_servers = int(file.readline().strip())
+                num_edges = int(file.readline().strip())
+
+                for _ in range(num_servers):
+                    topology.servers.add(file.readline().strip())
+
+                for _ in range(num_edges):
+                    topology.neighbors.add(file.readline().strip())
+            
+            print(topology.servers)
+            print(topology.neighbors)
+            initialize_dv_table()
+            display_dv_table()
+            #connect_to_neighbors()
         elif command == 'packets':
             print(f"Total packets sent: {packet_count}")
+        elif command.split(' ')[0] == 'update':
+            link_1, link_2 = map(int, command.split()[1:3])
+            if (command.split()[3] == 'inf'):
+                cost = max_int32
+            else:
+                cost = int(command.split()[3])
+            
+            update_topology(f"{link_1} {link_2} {cost}")
+            print(topology.neighbors)
+            initialize_dv_table()
+
+
             '''
         elif command.split(' ')[0] == 'update':
             try:
@@ -230,3 +282,44 @@ if __name__ == "__main__":
         update_dv_table(neighbor_id, neighborTable)
         display_dv_table()
     '''
+
+
+
+
+
+
+
+
+'''
+Tigran test
+
+
+# NetworkTopology input
+#_____________________________________________________________________________________
+class NetworkTopology:
+    def __init__(self, servers, neighbors):
+        self.servers = set(servers)
+        self.neighbors = set(neighbors)
+
+
+
+elif command.startswith('server -t'):
+            topology = NetworkTopology([],[])
+            filename = command.split(' ')[-1]  # get the last part of the string (the filename)
+            with open(filename) as file:
+                num_servers = int(file.readline().strip())
+                num_edges = int(file.readline().strip())
+
+                for _ in range(num_servers):
+                    topology.servers.add(file.readline().strip())
+
+                for _ in range(num_edges):
+                    topology.neighbors.add(file.readline().strip())
+            
+            print(topology.servers)
+            print(topology.neighbors)
+        
+            connect_to_neighbors()
+
+            
+'''
