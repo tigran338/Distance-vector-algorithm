@@ -317,37 +317,3 @@ if __name__ == "__main__":
 
 
 
-
-'''
-Tigran test
-
-
-# NetworkTopology input
-#_____________________________________________________________________________________
-class NetworkTopology:
-    def __init__(self, servers, neighbors):
-        self.servers = set(servers)
-        self.neighbors = set(neighbors)
-
-
-
-elif command.startswith('server -t'):
-            topology = NetworkTopology([],[])
-            filename = command.split(' ')[-1]  # get the last part of the string (the filename)
-            with open(filename) as file:
-                num_servers = int(file.readline().strip())
-                num_edges = int(file.readline().strip())
-
-                for _ in range(num_servers):
-                    topology.servers.add(file.readline().strip())
-
-                for _ in range(num_edges):
-                    topology.neighbors.add(file.readline().strip())
-            
-            print(topology.servers)
-            print(topology.neighbors)
-        
-            connect_to_neighbors()
-
-            
-'''
