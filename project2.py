@@ -163,6 +163,7 @@ def accept_connections():
         client_thread.start()
 
 def handle_client(client_socket, client_address, server_id):
+    global packet_count
     if not server_id:
         data = client_socket.recv(1024)
         server_id = int(data.strip())
@@ -174,6 +175,7 @@ def handle_client(client_socket, client_address, server_id):
         if data:
             message = data.decode()
             if message.startswith("TABLE"):
+                packet_count+=1
                 message_parts = message.split(" ")
                 sender_id = int(message_parts[1])
                 neighbor_table = {}
@@ -277,7 +279,7 @@ if __name__ == "__main__":
             accept_thread = threading.Thread(target=accept_connections, daemon=True)
             accept_thread.start()
         elif command == 'packets':
-            print(f"Total packets sent: {packet_count}")
+            print(f"Total packets received: {packet_count}")
         elif command.split(' ')[0] == 'update':
             link_1, link_2 = map(int, command.split()[1:3])
             if (command.split()[3] == 'inf'):
