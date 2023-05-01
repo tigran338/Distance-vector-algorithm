@@ -29,8 +29,12 @@ class NetworkTopology:
 
 
 def update_topology(add_element):
-    global topology
+    global topology, myid, servers, connections
     # Check if the second element exists in the set
+
+    if add_element in topology.neighbors:
+        return
+    
     existing_element = None
     for e in topology.neighbors:
         if e.split(' ')[1] == add_element.split(' ')[1]:
@@ -43,6 +47,11 @@ def update_topology(add_element):
 
     # Add the new element to the set
     topology.neighbors.add(add_element)
+
+    for connection_id in connections:
+        message = f"Update {add_element}"
+        send_message(connection_id, message)
+        print(f"Sent Update to server {connection_id}")
 
 
 
@@ -172,6 +181,17 @@ def handle_client(client_socket, client_address, server_id):
                     server_id, cost = map(int, table_entry.split(":"))
                     neighbor_table[server_id] = cost
                 update_dv_table(sender_id, neighbor_table)
+            elif message.startswith("Update"):
+                link_1, link_2 = map(int, message.split()[1:3])
+                if (message.split()[3] == 'inf'):
+                    cost = max_int32
+                else:
+                    cost = int(message.split()[3])
+                if int(link_2) == int(myid):
+                    update_topology(f"{link_1} {link_2} {cost}")
+                print(topology.neighbors)
+                initialize_dv_table()
+                
             else:
                 print(f"Received message from {client_address}: {message}")
             display_connections()
@@ -250,7 +270,10 @@ if __name__ == "__main__":
             print(topology.neighbors)
             initialize_dv_table()
             display_dv_table()
-            #connect_to_neighbors()
+            connect_to_neighbors()
+            print(row_table)
+            accept_thread = threading.Thread(target=accept_connections, daemon=True)
+            accept_thread.start()
         elif command == 'packets':
             print(f"Total packets sent: {packet_count}")
         elif command.split(' ')[0] == 'update':
