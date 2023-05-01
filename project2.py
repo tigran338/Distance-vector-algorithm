@@ -60,6 +60,7 @@ def update_topology(add_element):
 def initialize_dv_table():
     global myid, servers, row_table, dv_table, max_int32, topology
     
+    dv_table={}
 
     servers = {}
     for line in topology.servers:
@@ -163,48 +164,111 @@ def accept_connections():
         client_thread.start()
 
 def handle_client(client_socket, client_address, server_id):
-    global packet_count
-    if not server_id:
-        data = client_socket.recv(1024)
-        server_id = int(data.strip())
+    global packet_count,connections, topology
+    
+    try:
+        if not server_id:
+            data = client_socket.recv(1024)
+            server_id = int(data.strip())
 
-    connections[server_id] = (client_socket, client_address)
-    print(f"Connected to server {server_id}")
-    while True:
-        data = client_socket.recv(1024)
-        if data:
-            message = data.decode()
-            if message.startswith("TABLE"):
-                packet_count+=1
-                message_parts = message.split(" ")
-                sender_id = int(message_parts[1])
-                neighbor_table = {}
-                for table_entry in message_parts[2:]:
-                    server_id, cost = map(int, table_entry.split(":"))
-                    neighbor_table[server_id] = cost
-                update_dv_table(sender_id, neighbor_table)
-            elif message.startswith("Update"):
-                link_1, link_2 = map(int, message.split()[1:3])
-                if (message.split()[3] == 'inf'):
-                    cost = max_int32
-                else:
-                    cost = int(message.split()[3])
-                if int(link_1) == int(myid):
-                    update_topology(f"{link_1} {link_2} {cost}")
-                elif int(link_2) == int(myid):
-                    update_topology(f"{link_2} {link_1} {cost}")
-                print(topology.neighbors)
+        connections[server_id] = (client_socket, client_address)
+        print(f"Connected to server {server_id}")
+        while True:
+            try:
+                data = client_socket.recv(1024)
+            except:
+                if server_id in connections.keys():
+                    del connections[server_id]
+                    print(f"Connection with {server_id} lost.")
+                    existing_element =  None
+                    for line in topology.neighbors:
+                        link_1, link_2 = map(int, line.strip().split(' ')[0:2])
+                        if server_id == link_1 or server_id == link_2:
+                            existing_element = line
+                            break
+                    if existing_element:
+                        topology.neighbors.remove(existing_element)
+                        for server_id in connections:
+                            message = f"Update -1 -1 -1"
+                            send_message(server_id, message)
+                            print(f"Sent Update to server {server_id}")
                 initialize_dv_table()
-                
-            else:
-                print(f"Received message from {client_address}: {message}")
-            display_connections()
+                return
+
+
+            if data:
+                message = data.decode()
+                if message.startswith("TABLE"):
+                    packet_count+=1
+                    message_parts = message.split(" ")
+                    sender_id = int(message_parts[1])
+                    neighbor_table = {}
+                    for table_entry in message_parts[2:]:
+                        server_id, cost = map(int, table_entry.split(":"))
+                        neighbor_table[server_id] = cost
+                    update_dv_table(sender_id, neighbor_table)
+                elif message.startswith("Update"):
+                    link_1, link_2 = map(int, message.split()[1:3])
+                    if (message.split()[3] == 'inf'):
+                        cost = max_int32
+                    else:
+                        cost = int(message.split()[3])
+                    if int(link_1) == int(myid):
+                        update_topology(f"{link_1} {link_2} {cost}")
+                    elif int(link_2) == int(myid):
+                        update_topology(f"{link_2} {link_1} {cost}")
+                    print(topology.neighbors)
+                    initialize_dv_table()
+                    
+                else:
+                    print(f"Received message from {client_address}: {message}")
+                display_connections()
+    except:
+        if server_id in connections.keys():
+            del connections[server_id]
+            print(f"Connection with {server_id} lost.")
+            existing_element =  None
+            for line in topology.neighbors:
+                link_1, link_2 = map(int, line.strip().split(' ')[0:2])
+                if server_id == link_1 or server_id == link_2:
+                    existing_element = line
+                    break
+            if existing_element:
+                topology.neighbors.remove(existing_element)
+                for server_id in connections:
+                    message = f"Update -1 -1 -1"
+                    send_message(server_id, message)
+                    print(f"Sent Update to server {server_id}")
+        initialize_dv_table()
+        return
+
         
 
 def send_message(connection_id, message):
-    connection = connections[connection_id]
-    connection[0].sendall(message.encode())
-    print(f"message sent to: {connection_id}")
+    
+    global connections
+    try:
+        connection = connections[connection_id]
+        connection[0].sendall(message.encode())
+        print(f"message sent to: {connection_id}")
+    except:
+        if server_id in connections.keys():
+            del connections[server_id]
+            print(f"Connection with {server_id} lost.")
+            existing_element =  None
+            for line in topology.neighbors:
+                link_1, link_2 = map(int, line.strip().split(' ')[0:2])
+                if server_id == link_1 or server_id == link_2:
+                    existing_element = line
+                    break
+            if existing_element:
+                topology.neighbors.remove(existing_element)
+                for server_id in connections:
+                    message = f"Update -1 -1 -1"
+                    send_message(server_id, message)
+                    print(f"Sent Update to server {server_id}")
+        initialize_dv_table()
+        return
 
 def connect_to(address, port):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -223,6 +287,7 @@ def connect_to(address, port):
         client_thread = threading.Thread(target=handle_client, args=(client_socket, (address, port), server_id))
         client_thread.start()
         send_message(server_id, str(myid))
+        connections[server_id] = (client_socket, (address, port))
     else:
         print("Could not find server ID for given address and port")
 
@@ -245,6 +310,31 @@ def display_connections():
     for server_id, connection_info in connections.items():
         print(f"Server ID: {server_id} - Address: {connection_info[1]}")
               
+
+
+#closes a specific connection id, sends "Close Connection" message to the connection to remove it
+def terminate_connection(connection_id):
+    global connections, topology
+    connection = connections[connection_id]
+    connection[0].close()
+    del connections[connection_id]
+    print(f"Connection with {connection_id} terminated.")
+    existing_element =  None
+    for line in topology.neighbors:
+        link_1, link_2 = map(int, line.strip().split(' ')[0:2])
+        if connection_id == link_1 or connection_id == link_2:
+            existing_element = line
+            break
+    
+    if existing_element:
+        topology.neighbors.remove(existing_element)
+        initialize_dv_table()
+        for connection_id in connections:
+            message = f"Update -1 -1 -1"
+            send_message(connection_id, message)
+            print(f"Sent Update to server {connection_id}")
+
+
 
 #Main part
 if __name__ == "__main__":
@@ -293,6 +383,17 @@ if __name__ == "__main__":
                 update_topology(f"{link_2} {link_1} {cost}")
             print(topology.neighbors)
             initialize_dv_table()
+        elif command.startswith("disable"):
+            server_id = int(command.split(' ')[1])
+            
+            print(row_table)
+            display_connections()
+            if int(server_id) not in row_table and int(server_id) != int(myid):
+                print("The neigbor not found")
+                continue
+            
+            terminate_connection(server_id)
+
 
 
             '''
