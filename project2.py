@@ -187,8 +187,10 @@ def handle_client(client_socket, client_address, server_id):
                     cost = max_int32
                 else:
                     cost = int(message.split()[3])
-                if int(link_2) == int(myid):
+                if int(link_1) == int(myid):
                     update_topology(f"{link_1} {link_2} {cost}")
+                elif int(link_2) == int(myid):
+                    update_topology(f"{link_2} {link_1} {cost}")
                 print(topology.neighbors)
                 initialize_dv_table()
                 
@@ -283,7 +285,10 @@ if __name__ == "__main__":
             else:
                 cost = int(command.split()[3])
             
-            update_topology(f"{link_1} {link_2} {cost}")
+            if int(link_1) == int(myid):
+                update_topology(f"{link_1} {link_2} {cost}")
+            elif int(link_2) == int(myid):
+                update_topology(f"{link_2} {link_1} {cost}")
             print(topology.neighbors)
             initialize_dv_table()
 
