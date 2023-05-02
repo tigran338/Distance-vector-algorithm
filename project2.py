@@ -71,6 +71,7 @@ def initialize_dv_table():
     neighbor = set()
     row_table = set()
     # Update dv_table with costs from the file for the current server
+
     for line in topology.neighbors:
         server_id, neighbor_id, cost = map(int, line.strip().split())
         
@@ -87,6 +88,8 @@ def initialize_dv_table():
     for server_id, neighbor_id, cost in neighbor:
         dv_table[server_id][neighbor_id] = cost
     
+    display_dv_table()
+
     dv_table[myid][myid] = 0
         
             
@@ -134,9 +137,7 @@ def step():
             message += f" {server_id}:{cost}"
         send_message(connection_id, message)
         print(f"Sent distance vector row to server {connection_id}")
-        #packet_count += 1  
-    #print(f"Sent {packet_count} packets in this step")
-    #packet_count = 0
+        
 
 #SERVER PART
 #______________________________________________________________________________________
@@ -146,7 +147,8 @@ def accept_connections():
     ip = servers[myid]['ip']
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind((ip, port))
-    server_socket.listen(5)
+    server_socket.listen(10)
+    
     print(f"Server started and listening on port {port}")
     while True:
         client_socket, client_address = server_socket.accept()
@@ -205,10 +207,12 @@ def handle_client(client_socket, client_address, server_id):
                     
                 else:
                     print(f"Received message from {client_address}: {message}")
-                display_connections()
+                #display_connections()
     except:
         if server_id in connections.keys():
+            print(f"Before delete {connections}")
             del connections[server_id]
+            print(f"After delete {connections}")
             print(f"Connection with {server_id} lost.")
             existing_element =  None
             for line in topology.neighbors:
@@ -372,7 +376,7 @@ if __name__ == "__main__":
             server_id = int(command.split(' ')[1])
             
             print(row_table)
-            display_connections()
+            #display_connections()
             if int(server_id) not in row_table and int(server_id) != int(myid):
                 print("The neigbor not found")
                 continue
