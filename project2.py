@@ -77,7 +77,7 @@ def initialize_dv_table():
         neighbor.update([(server_id, neighbor_id, cost)])
         row_table.add(server_id)
         row_table.add(neighbor_id)
-        myid = server_id
+        
 
     for i in row_table:
         dv_table[i] = {}
@@ -174,26 +174,9 @@ def handle_client(client_socket, client_address, server_id):
         connections[server_id] = (client_socket, client_address)
         print(f"Connected to server {server_id}")
         while True:
-            try:
-                data = client_socket.recv(1024)
-            except:
-                if server_id in connections.keys():
-                    del connections[server_id]
-                    print(f"Connection with {server_id} lost.")
-                    existing_element =  None
-                    for line in topology.neighbors:
-                        link_1, link_2 = map(int, line.strip().split(' ')[0:2])
-                        if server_id == link_1 or server_id == link_2:
-                            existing_element = line
-                            break
-                    if existing_element:
-                        topology.neighbors.remove(existing_element)
-                        for server_id in connections:
-                            message = f"Update -1 -1 -1"
-                            send_message(server_id, message)
-                            print(f"Sent Update to server {server_id}")
-                initialize_dv_table()
-                return
+            
+            data = client_socket.recv(1024)
+            
 
 
             if data:
@@ -235,10 +218,10 @@ def handle_client(client_socket, client_address, server_id):
                     break
             if existing_element:
                 topology.neighbors.remove(existing_element)
-                for server_id in connections:
+                for connection_id in connections:
                     message = f"Update -1 -1 -1"
-                    send_message(server_id, message)
-                    print(f"Sent Update to server {server_id}")
+                    send_message(connection_id, message)
+                    print(f"Sent Update to server {connection_id}")
         initialize_dv_table()
         return
 
@@ -252,13 +235,13 @@ def send_message(connection_id, message):
         connection[0].sendall(message.encode())
         print(f"message sent to: {connection_id}")
     except:
-        if server_id in connections.keys():
-            del connections[server_id]
-            print(f"Connection with {server_id} lost.")
+        if connection_id in connections.keys():
+            del connections[connection_id]
+            print(f"Connection with {connection_id} lost.")
             existing_element =  None
             for line in topology.neighbors:
                 link_1, link_2 = map(int, line.strip().split(' ')[0:2])
-                if server_id == link_1 or server_id == link_2:
+                if connection_id == link_1 or connection_id == link_2:
                     existing_element = line
                     break
             if existing_element:
@@ -358,7 +341,9 @@ if __name__ == "__main__":
                     topology.servers.add(file.readline().strip())
 
                 for _ in range(num_edges):
-                    topology.neighbors.add(file.readline().strip())
+                    s = file.readline().strip()
+                    topology.neighbors.add(s)
+                    myid = int(s.split(' ')[0])
             
             print(topology.servers)
             print(topology.neighbors)
