@@ -94,7 +94,7 @@ def initialize_dv_table():
     for server_id, neighbor_id, cost in neighbor:
         dv_table[server_id][neighbor_id] = cost
     
-    display_dv_table()
+    #display_dv_table()
 
     if myid in row_table:
         dv_table[myid][myid] = 0
@@ -166,7 +166,7 @@ def accept_connections():
         # Find the server ID associated with the incoming connection
         for server_id, server_info in servers.items():
             # Compare IP and port of the connected client and the server info
-            print(f"ip {client_address[0]} port {client_address[1]}")
+            #print(f"ip {client_address[0]} port {client_address[1]}")
             if server_info['ip'] == client_address[0] and server_info['port'] == client_address[1]:
                 connections[server_id] = (client_socket, client_address)
                 break
@@ -213,7 +213,7 @@ def handle_client(client_socket, client_address, server_id):
                         update_topology(f"{link_1} {link_2} {cost}")
                     elif int(link_2) == int(myid):
                         update_topology(f"{link_2} {link_1} {cost}")
-                    print(topology.neighbors)
+                    #print(topology.neighbors)
                     initialize_dv_table()
                 elif message.startswith("Disable"):
                     del connections[int(server_id)]
@@ -293,7 +293,7 @@ def send_message(server_id, message):
     global connections
     connection = connections[server_id]
     connection[0].sendall(message.encode())
-    print(f"message sent to: {server_id}")
+    #print(f"message sent to: {server_id}")
     return
 
 def connect_to(address, port):
@@ -324,7 +324,7 @@ def connect_to_neighbors():
         try:
             if myid != neighbor_id:
                 connect_to(servers[neighbor_id]['ip'] , servers[neighbor_id]['port'])
-                print(str(neighbor_id))
+                #print(str(neighbor_id))
         except:
             print(f"Was no able to connect to {neighbor_id} server") 
 
@@ -405,12 +405,12 @@ if __name__ == "__main__":
                     topology.neighbors.add(s)
                     myid = int(s.split(' ')[0])
             
-            print(topology.servers)
-            print(topology.neighbors)
+            #print(topology.servers)
+            #print(topology.neighbors)
             initialize_dv_table()
             display_dv_table()
             connect_to_neighbors()
-            print(row_table)
+            #print(row_table)
             accept_thread = threading.Thread(target=accept_connections, daemon=True)
             accept_thread.start()
         elif command == 'packets':
@@ -426,7 +426,7 @@ if __name__ == "__main__":
                 update_topology(f"{link_1} {link_2} {cost}")
             elif int(link_2) == int(myid):
                 update_topology(f"{link_2} {link_1} {cost}")
-            print(topology.neighbors)
+            #print(topology.neighbors)
             initialize_dv_table()
         elif command.startswith("disable"):
             server_id = int(command.split(' ')[1])
@@ -442,7 +442,8 @@ if __name__ == "__main__":
 
             for id in del_connections:
                 terminate_connection(id)
-
+            
+            break
 
 
        
