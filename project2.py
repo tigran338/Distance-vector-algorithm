@@ -1,3 +1,4 @@
+from ast import Delete
 import sys
 import socket
 import threading
@@ -15,7 +16,7 @@ row_table = None
 dv_table = {}
 topology = None
 packet_count = 0
-
+is_initialize_dv_table = False
 
 
 # NetworkTopology input
@@ -58,8 +59,13 @@ def update_topology(add_element):
 # Distance vector Algoritm variables paert
 #______________________________________________________________________________________
 def initialize_dv_table():
-    global myid, servers, row_table, dv_table, max_int32, topology
+    global myid, servers, row_table, dv_table, max_int32, topology, is_initialize_dv_table
     
+    while is_initialize_dv_table:
+        pass
+    
+    is_initialize_dv_table = True
+
     dv_table={}
 
     servers = {}
@@ -90,7 +96,10 @@ def initialize_dv_table():
     
     display_dv_table()
 
-    dv_table[myid][myid] = 0
+    if myid in row_table:
+        dv_table[myid][myid] = 0
+
+    is_initialize_dv_table = False
         
             
 def display_dv_table():
@@ -131,10 +140,11 @@ def update_dv_table(neighbor_id:int, neighborTable:dict):
 
 def step():
     global myid, servers, connections
+    message = f"TABLE {myid}"
+    for server_id, cost in dv_table[myid].items():
+        message += f" {server_id}:{cost}"
+    
     for connection_id in connections:
-        message = f"TABLE {myid}"
-        for server_id, cost in dv_table[myid].items():
-            message += f" {server_id}:{cost}"
         send_message(connection_id, message)
         print(f"Sent distance vector row to server {connection_id}")
         
@@ -168,12 +178,13 @@ def accept_connections():
 def handle_client(client_socket, client_address, server_id):
     global packet_count,connections, topology
     
+    
+    if not server_id:
+        data = client_socket.recv(1024)
+        server_id = int(data.strip())
+    
+    connections[server_id] = (client_socket, client_address)
     try:
-        if not server_id:
-            data = client_socket.recv(1024)
-            server_id = int(data.strip())
-
-        connections[server_id] = (client_socket, client_address)
         print(f"Connected to server {server_id}")
         while True:
             
@@ -204,16 +215,58 @@ def handle_client(client_socket, client_address, server_id):
                         update_topology(f"{link_2} {link_1} {cost}")
                     print(topology.neighbors)
                     initialize_dv_table()
+                elif message.startswith("Disable"):
+                    del connections[int(server_id)]
                     
+                    print(f"Connection with {server_id} lost.")
+                    existing_element =  None
+
+                    for line in topology.neighbors:
+                        link_1, link_2 = map(int, line.strip().split(' ')[0:2])
+                        if server_id == link_1 or server_id == link_2:
+                            existing_element = line
+                            break
+                    if existing_element:
+                        topology.neighbors.remove(existing_element)
+                    
+                    initialize_dv_table()
+
+
+                    ignore_id = [int(myid), int(server_id)]
+                    message = str(myid) + " " + str(server_id) + " " + " ".join(str(id) for id in connections)
+
+                    for connection_id in connections.keys():
+                        if connection_id not in ignore_id:
+                            try:
+                                send_message(connection_id, message)
+                                print(f"Sent Reset to server {connection_id}") 
+                            except ConnectionResetError:
+                                print(f"ConnectionResetError: Connection to server {connection_id} was forcibly closed by the remote host.")
+                    return
+
+                elif message.startswith("Reset"):
+                    initialize_dv_table()
+                    ignore_id = [int(num) for num in message.strip().split()[1:]]
+                    message = message + " " + str(myid) + " " + str(server_id) + " " + " ".join(str(id) for id in connections)
+
+                    for connection_id in connections.keys():
+                        if connection_id not in ignore_id:
+                            try:
+                                send_message(connection_id, message)
+                                print(f"Sent Reset to server {connection_id}") 
+                            except ConnectionResetError:
+                                print(f"ConnectionResetError: Connection to server {connection_id} was forcibly closed by the remote host.")
+                            
+                             
                 else:
                     print(f"Received message from {client_address}: {message}")
                 #display_connections()
     except:
         if server_id in connections.keys():
-            print(f"Before delete {connections}")
-            del connections[server_id]
-            print(f"After delete {connections}")
-            print(f"Connection with {server_id} lost.")
+            #print(f"Before delete {connections}")
+            del connections[int(server_id)]
+            #print(f"After delete {connections}")
+            print(f"Connection with {server_id} lost (not handle).")
             existing_element =  None
             for line in topology.neighbors:
                 link_1, link_2 = map(int, line.strip().split(' ')[0:2])
@@ -222,40 +275,26 @@ def handle_client(client_socket, client_address, server_id):
                     break
             if existing_element:
                 topology.neighbors.remove(existing_element)
+                
+                initialize_dv_table()
+                '''
+                message = " ".join(str(id) for id in connections)
+                message = "Reset " + str(myid)
                 for connection_id in connections:
-                    message = f"Update -1 -1 -1"
                     send_message(connection_id, message)
-                    print(f"Sent Update to server {connection_id}")
-        initialize_dv_table()
-        return
+                    print(f"Sent Reset to server {connection_id}")
+                '''
+        
 
         
 
-def send_message(connection_id, message):
+def send_message(server_id, message):
     
     global connections
-    try:
-        connection = connections[connection_id]
-        connection[0].sendall(message.encode())
-        print(f"message sent to: {connection_id}")
-    except:
-        if connection_id in connections.keys():
-            del connections[connection_id]
-            print(f"Connection with {connection_id} lost.")
-            existing_element =  None
-            for line in topology.neighbors:
-                link_1, link_2 = map(int, line.strip().split(' ')[0:2])
-                if connection_id == link_1 or connection_id == link_2:
-                    existing_element = line
-                    break
-            if existing_element:
-                topology.neighbors.remove(existing_element)
-                for server_id in connections:
-                    message = f"Update -1 -1 -1"
-                    send_message(server_id, message)
-                    print(f"Sent Update to server {server_id}")
-        initialize_dv_table()
-        return
+    connection = connections[server_id]
+    connection[0].sendall(message.encode())
+    print(f"message sent to: {server_id}")
+    return
 
 def connect_to(address, port):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -302,6 +341,9 @@ def display_connections():
 #closes a specific connection id, sends "Close Connection" message to the connection to remove it
 def terminate_connection(connection_id):
     global connections, topology
+
+    send_message(connection_id,"Disable")
+
     connection = connections[connection_id]
     connection[0].close()
     del connections[connection_id]
@@ -316,10 +358,24 @@ def terminate_connection(connection_id):
     if existing_element:
         topology.neighbors.remove(existing_element)
         initialize_dv_table()
-        for connection_id in connections:
-            message = f"Update -1 -1 -1"
-            send_message(connection_id, message)
-            print(f"Sent Update to server {connection_id}")
+
+        
+        # for connection_id in connections:
+        #     message = f"Update -1 -1 -1"
+        #     send_message(connection_id, message)
+        #     print(f"Sent Reset to server {connection_id}")
+        time.sleep(1)
+        message = "Reset " +  str(myid) + " " + str(connection_id)+ " "  + " ".join(str(id) for id in connections)
+        initialize_dv_table()
+        
+        for connection_id in connections.keys():
+            try:
+                send_message(connection_id, message)
+                print(f"Sent Reset to server {connection_id}")
+            except ConnectionResetError:
+                print(f"ConnectionResetError: Connection to server {connection_id} was forcibly closed by the remote host.")
+                
+                
 
 
 
@@ -376,32 +432,20 @@ if __name__ == "__main__":
             server_id = int(command.split(' ')[1])
             
             print(row_table)
-            #display_connections()
-            if int(server_id) not in row_table and int(server_id) != int(myid):
+            if int(server_id) not in row_table and int(server_id) == int(myid):
                 print("The neigbor not found")
                 continue
             
             terminate_connection(server_id)
+        elif command.startswith("crash"):
+            del_connections = list(connections.keys())[:]
+
+            for id in del_connections:
+                terminate_connection(id)
 
 
 
-            '''
-        elif command.split(' ')[0] == 'update':
-            try:
-                dv_table[int(command.split(' ')[1])][int(command.split(' ')[2])] = int(command.split(' ')[3]) 
-            except:
-                print("Wrong input")
-    
-    while True:
-        neighbor_id = int(input("Enter neighbor_id: "))
-        num_servers = len(servers)
-        neighborTable = {}
-        for i in range(num_servers):
-            server_id, cost = map(int, input(f"Enter server ID and cost for neighbor {neighbor_id}: ").split())
-            neighborTable[server_id] = cost
-        update_dv_table(neighbor_id, neighborTable)
-        display_dv_table()
-    '''
+       
 
 
 
