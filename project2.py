@@ -18,7 +18,7 @@ topology = None
 packet_count = 0
 is_initialize_dv_table = False
 
-
+last_update = None
 # NetworkTopology input
 #_____________________________________________________________________________________
 class NetworkTopology:
@@ -29,30 +29,31 @@ class NetworkTopology:
 
 
 
-def update_topology(add_element):
-    global topology, myid, servers, connections
+def update_topology(update):
+    global topology, myid, servers, connections,last_update
     # Check if the second element exists in the set
-
-    if add_element in topology.neighbors:
+    if update == last_update:
         return
     
-    existing_element = None
-    for e in topology.neighbors:
-        if e.split(' ')[1] == add_element.split(' ')[1]:
-            existing_element = e
-            break
+    last_update = update
 
-    # If the second element exists, remove it from the set
-    if existing_element:
-        topology.neighbors.remove(existing_element)
+    link_1,link_2,cost = map(int, update.strip().split())
+    message = f"Update {update}"
+    
+    if link_1 in dv_table.keys() and link_2 in dv_table.keys():
+        if link_1 == int(myid):
+            dv_table[link_1][link_2] = cost
+            send_message(int(link_2), message)
+        else:
+            dv_table[link_2][link_1] = cost
+            send_message(int(link_1), message)
+    
 
-    # Add the new element to the set
-    topology.neighbors.add(add_element)
 
-    for connection_id in connections:
-        message = f"Update {add_element}"
-        send_message(connection_id, message)
-        print(f"Sent Update to server {connection_id}")
+    # for connection_id in connections:
+    #     message = f"Update {update}"
+    #     send_message(connection_id, message)
+    #     print(f"Sent Update to server {connection_id}")
 
 
 
@@ -93,13 +94,10 @@ def initialize_dv_table():
 
     for server_id, neighbor_id, cost in neighbor:
         dv_table[server_id][neighbor_id] = cost
-    
-    #display_dv_table()
 
     if myid in row_table:
         dv_table[myid][myid] = 0
 
-    is_initialize_dv_table = False
         
             
 def display_dv_table():
@@ -148,6 +146,15 @@ def step():
         send_message(connection_id, message)
         print(f"Sent distance vector row to server {connection_id}")
         
+def connect_to_neighbors():
+    
+    for neighbor_id in sorted(dv_table.keys()):
+        try:
+            if myid != neighbor_id:
+                connect_to(servers[neighbor_id]['ip'] , servers[neighbor_id]['port'])
+                #print(str(neighbor_id))
+        except:
+            print(f"Was no able to connect to {neighbor_id} server") 
 
 #SERVER PART
 #______________________________________________________________________________________
@@ -209,81 +216,22 @@ def handle_client(client_socket, client_address, server_id):
                         cost = max_int32
                     else:
                         cost = int(message.split()[3])
-                    if int(link_1) == int(myid):
-                        update_topology(f"{link_1} {link_2} {cost}")
-                    elif int(link_2) == int(myid):
-                        update_topology(f"{link_2} {link_1} {cost}")
-                    #print(topology.neighbors)
-                    initialize_dv_table()
+
+                    update_topology(f"{link_1} {link_2} {cost}")
                 elif message.startswith("Disable"):
                     del connections[int(server_id)]
-                    
+                    del dv_table[int(server_id)]
                     print(f"Connection with {server_id} lost.")
-                    existing_element =  None
-
-                    for line in topology.neighbors:
-                        link_1, link_2 = map(int, line.strip().split(' ')[0:2])
-                        if server_id == link_1 or server_id == link_2:
-                            existing_element = line
-                            break
-                    if existing_element:
-                        topology.neighbors.remove(existing_element)
-                    
-                    initialize_dv_table()
-
-
-                    ignore_id = [int(myid), int(server_id)]
-                    message = str(myid) + " " + str(server_id) + " " + " ".join(str(id) for id in connections)
-
-                    for connection_id in connections.keys():
-                        if connection_id not in ignore_id:
-                            try:
-                                send_message(connection_id, message)
-                                print(f"Sent Reset to server {connection_id}") 
-                            except ConnectionResetError:
-                                print(f"ConnectionResetError: Connection to server {connection_id} was forcibly closed by the remote host.")
-                    return
-
-                elif message.startswith("Reset"):
-                    initialize_dv_table()
-                    ignore_id = [int(num) for num in message.strip().split()[1:]]
-                    message = message + " " + str(myid) + " " + str(server_id) + " " + " ".join(str(id) for id in connections)
-
-                    for connection_id in connections.keys():
-                        if connection_id not in ignore_id:
-                            try:
-                                send_message(connection_id, message)
-                                print(f"Sent Reset to server {connection_id}") 
-                            except ConnectionResetError:
-                                print(f"ConnectionResetError: Connection to server {connection_id} was forcibly closed by the remote host.")
-                            
-                             
+                    return          
                 else:
                     print(f"Received message from {client_address}: {message}")
                 #display_connections()
     except:
         if server_id in connections.keys():
-            #print(f"Before delete {connections}")
             del connections[int(server_id)]
-            #print(f"After delete {connections}")
             print(f"Connection with {server_id} lost (not handle).")
-            existing_element =  None
-            for line in topology.neighbors:
-                link_1, link_2 = map(int, line.strip().split(' ')[0:2])
-                if server_id == link_1 or server_id == link_2:
-                    existing_element = line
-                    break
-            if existing_element:
-                topology.neighbors.remove(existing_element)
+            
                 
-                initialize_dv_table()
-                '''
-                message = " ".join(str(id) for id in connections)
-                message = "Reset " + str(myid)
-                for connection_id in connections:
-                    send_message(connection_id, message)
-                    print(f"Sent Reset to server {connection_id}")
-                '''
         
 
         
@@ -318,17 +266,6 @@ def connect_to(address, port):
         print("Could not find server ID for given address and port")
 
 
-def connect_to_neighbors():
-    
-    for neighbor_id in row_table:
-        try:
-            if myid != neighbor_id:
-                connect_to(servers[neighbor_id]['ip'] , servers[neighbor_id]['port'])
-                #print(str(neighbor_id))
-        except:
-            print(f"Was no able to connect to {neighbor_id} server") 
-
-
 
 #Debug
 def display_connections():
@@ -345,35 +282,12 @@ def terminate_connection(connection_id):
     send_message(connection_id,"Disable")
 
     connection = connections[connection_id]
+    #time.sleep(1)
     connection[0].close()
     del connections[connection_id]
-    print(f"Connection with {connection_id} terminated.")
-    existing_element =  None
-    for line in topology.neighbors:
-        link_1, link_2 = map(int, line.strip().split(' ')[0:2])
-        if connection_id == link_1 or connection_id == link_2:
-            existing_element = line
-            break
+    del dv_table[connection_id]
     
-    if existing_element:
-        topology.neighbors.remove(existing_element)
-        initialize_dv_table()
-
-        
-        # for connection_id in connections:
-        #     message = f"Update -1 -1 -1"
-        #     send_message(connection_id, message)
-        #     print(f"Sent Reset to server {connection_id}")
-        time.sleep(1)
-        message = "Reset " +  str(myid) + " " + str(connection_id)+ " "  + " ".join(str(id) for id in connections)
-        initialize_dv_table()
-        
-        for connection_id in connections.keys():
-            try:
-                send_message(connection_id, message)
-                print(f"Sent Reset to server {connection_id}")
-            except ConnectionResetError:
-                print(f"ConnectionResetError: Connection to server {connection_id} was forcibly closed by the remote host.")
+    print(f"Connection with {connection_id} terminated.")
                 
                 
 
@@ -405,12 +319,9 @@ if __name__ == "__main__":
                     topology.neighbors.add(s)
                     myid = int(s.split(' ')[0])
             
-            #print(topology.servers)
-            #print(topology.neighbors)
             initialize_dv_table()
             display_dv_table()
             connect_to_neighbors()
-            #print(row_table)
             accept_thread = threading.Thread(target=accept_connections, daemon=True)
             accept_thread.start()
         elif command == 'packets':
@@ -422,17 +333,12 @@ if __name__ == "__main__":
             else:
                 cost = int(command.split()[3])
             
-            if int(link_1) == int(myid):
-                update_topology(f"{link_1} {link_2} {cost}")
-            elif int(link_2) == int(myid):
-                update_topology(f"{link_2} {link_1} {cost}")
-            #print(topology.neighbors)
-            initialize_dv_table()
+            update_topology(f"{link_1} {link_2} {cost}")
         elif command.startswith("disable"):
             server_id = int(command.split(' ')[1])
             
-            print(row_table)
-            if int(server_id) not in row_table and int(server_id) == int(myid):
+            
+            if int(server_id) not in dv_table.keys() or int(server_id) == int(myid):
                 print("The neigbor not found")
                 continue
             
