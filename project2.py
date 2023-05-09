@@ -19,6 +19,7 @@ packet_count = 0
 is_initialize_dv_table = False
 
 last_update = None
+last_crash = None
 # NetworkTopology input
 #_____________________________________________________________________________________
 class NetworkTopology:
@@ -113,12 +114,13 @@ def display_dv_table():
         if server_id in dv_table:
             row = f"{server_id:3} |"
             for neighbor_id in sorted(dv_table[server_id].keys()):
-                cost = dv_table[server_id][neighbor_id]
-                if cost == max_int32:
-                    cost_str = " inf "
-                else:
-                    cost_str = f"{cost:5}"
-                row += cost_str.replace('-', ' - ') + "|"
+                if neighbor_id in servers:
+                    cost = dv_table[server_id][neighbor_id]
+                    if cost == max_int32:
+                        cost_str = " inf "
+                    else:
+                        cost_str = f"{cost:5}"
+                    row += cost_str.replace('-', ' - ') + "|"
             print(row)
             print(separator)
         
@@ -181,7 +183,7 @@ def accept_connections():
         client_thread.start()
 
 def handle_client(client_socket, client_address, server_id):
-    global packet_count,connections, topology, max_int32
+    global packet_count,connections, topology, max_int32, servers, last_crash
     
     
     if not server_id:
@@ -199,6 +201,7 @@ def handle_client(client_socket, client_address, server_id):
 
             if data:
                 message = data.decode()
+                print(message)
                 if message.startswith("TABLE"):
                     packet_count+=1
                     message_parts = message.split(" ")
@@ -218,12 +221,30 @@ def handle_client(client_socket, client_address, server_id):
                     update_topology(f"{link_1} {link_2} {cost}")
                 elif message.startswith("Disable"):
                     disableid = int(message.strip().split()[1])
-                    del connections[int(disableid)]
-                    del dv_table[int(disableid)]
+                    del connections[disableid]
+                    del dv_table[disableid]
                     dv_table[myid][disableid] = max_int32
                     print(f"Connection with {disableid} lost.")
 
-                    return          
+                    return     
+                elif message.startswith("Crash"):
+                    if message != last_crash:
+                        crashid = int(message.strip().split()[1])
+                        del connections[crashid]
+                        del dv_table[crashid]
+                        
+                        for keys in dv_table.keys():
+                            dv_table[keys][crashid] = max_int32
+
+                        dv_table[myid][crashid] = max_int32
+                        print(f"The server {crashid} is crash.")
+
+                        
+                        #for neighbor in connections:
+                        #    send_message(neighbor, f"Crash {crashid}")
+                        
+                        last_crash = message
+                        return      
                 else:
                     print(f"Received message from {client_address}: {message}")
                 #display_connections()
@@ -291,7 +312,19 @@ def terminate_connection(connection_id):
     print(f"Connection with {connection_id} terminated.")
                 
                 
+def crash(connection_id):
+    global connections, topology
 
+    send_message(connection_id,f"Crash {myid}")
+
+    connection = connections[connection_id]
+    #time.sleep(1)
+    connection[0].close()
+    del connections[connection_id]
+    del dv_table[connection_id]
+    dv_table[myid][connection_id] = max_int32
+    
+    print(f"Connection with {connection_id} terminated.")
 
 
 #Main part
@@ -348,7 +381,7 @@ if __name__ == "__main__":
             del_connections = list(connections.keys())[:]
 
             for id in del_connections:
-                terminate_connection(id)
+                crash(id)
             
             break
 
