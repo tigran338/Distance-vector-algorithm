@@ -185,6 +185,7 @@ def accept_connections():
 def handle_client(client_socket, client_address, server_id):
     global packet_count,connections, topology, max_int32, servers, last_crash
     
+    lock = threading.Lock()
     
     if not server_id:
         data = client_socket.recv(1024)
@@ -200,58 +201,56 @@ def handle_client(client_socket, client_address, server_id):
 
 
             if data:
-                message = data.decode()
-                print(message)
-                if message.startswith("TABLE"):
-                    packet_count+=1
-                    message_parts = message.split(" ")
-                    sender_id = int(message_parts[1])
-                    neighbor_table = {}
-                    for table_entry in message_parts[2:]:
-                        server_id, cost = map(int, table_entry.split(":"))
-                        neighbor_table[server_id] = cost
-                    update_dv_table(sender_id, neighbor_table)
-                elif message.startswith("Update"):
-                    link_1, link_2 = map(int, message.split()[1:3])
-                    if (message.split()[3] == 'inf'):
-                        cost = max_int32
+                with lock:
+                    message = data.decode()
+                    if message.startswith("TABLE"):
+                        packet_count+=1
+                        message_parts = message.split(" ")
+                        sender_id = int(message_parts[1])
+                        neighbor_table = {}
+                        for table_entry in message_parts[2:]:
+                            server_id, cost = map(int, table_entry.split(":"))
+                            neighbor_table[server_id] = cost
+                        update_dv_table(sender_id, neighbor_table)
+                    elif message.startswith("Update"):
+                        link_1, link_2 = map(int, message.split()[1:3])
+                        if (message.split()[3] == 'inf'):
+                            cost = max_int32
+                        else:
+                            cost = int(message.split()[3])
+
+                        update_topology(f"{link_1} {link_2} {cost}")
+                    elif message.startswith("Disable"):
+                        disableid = int(message.strip().split()[1])
+                        del connections[disableid]
+                        del dv_table[disableid]
+                        dv_table[myid][disableid] = max_int32
+                        print(f"Connection with {disableid} lost.")
+
+                        return     
+                    elif message.startswith("Crash"):
+                        if message != last_crash:
+                            crashid = int(message.strip().split()[1])
+                            del connections[crashid]
+                            del dv_table[crashid]
+                            
+                            for keys in dv_table.keys():
+                                dv_table[keys][crashid] = max_int32
+
+                            dv_table[myid][crashid] = max_int32
+                            print(f"The server {crashid} is crash.")
+
+                            
+                            #for neighbor in connections:
+                            #    send_message(neighbor, f"Crash {crashid}")
+                            
+                            last_crash = message
+                            return      
                     else:
-                        cost = int(message.split()[3])
-
-                    update_topology(f"{link_1} {link_2} {cost}")
-                elif message.startswith("Disable"):
-                    disableid = int(message.strip().split()[1])
-                    del connections[disableid]
-                    del dv_table[disableid]
-                    dv_table[myid][disableid] = max_int32
-                    print(f"Connection with {disableid} lost.")
-
-                    return     
-                elif message.startswith("Crash"):
-                    if message != last_crash:
-                        crashid = int(message.strip().split()[1])
-                        del connections[crashid]
-                        del dv_table[crashid]
-                        
-                        for keys in dv_table.keys():
-                            dv_table[keys][crashid] = max_int32
-
-                        dv_table[myid][crashid] = max_int32
-                        print(f"The server {crashid} is crash.")
-
-                        
-                        #for neighbor in connections:
-                        #    send_message(neighbor, f"Crash {crashid}")
-                        
-                        last_crash = message
-                        return      
-                else:
-                    print(f"Received message from {client_address}: {message}")
-                #display_connections()
+                        print(f"Received message from {client_address}: {message}")
+                    #display_connections()
     except:
-        if server_id in connections.keys():
-            del connections[int(server_id)]
-            print(f"Connection with {server_id} lost (not handle).")
+        pass
             
                 
         
