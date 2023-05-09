@@ -171,19 +171,17 @@ def accept_connections():
         client_socket, client_address = server_socket.accept()
 
         # Find the server ID associated with the incoming connection
-        for server_id, server_info in servers.items():
-            # Compare IP and port of the connected client and the server info
-            #print(f"ip {client_address[0]} port {client_address[1]}")
-            if server_info['ip'] == client_address[0] and server_info['port'] == client_address[1]:
-                connections[server_id] = (client_socket, client_address)
-                break
+        # for server_id, server_info in servers.items():
+        #     if server_info['ip'] == client_address[0] and server_info['port'] == client_address[1]:
+        #         connections[server_id] = (client_socket, client_address)
+        #         break
 
         print(f"New connection from {client_address}")
         client_thread = threading.Thread(target=handle_client, args=(client_socket, client_address, None))
         client_thread.start()
 
 def handle_client(client_socket, client_address, server_id):
-    global packet_count,connections, topology
+    global packet_count,connections, topology, max_int32
     
     
     if not server_id:
@@ -219,9 +217,12 @@ def handle_client(client_socket, client_address, server_id):
 
                     update_topology(f"{link_1} {link_2} {cost}")
                 elif message.startswith("Disable"):
-                    del connections[int(server_id)]
-                    del dv_table[int(server_id)]
-                    print(f"Connection with {server_id} lost.")
+                    disableid = int(message.strip().split()[1])
+                    del connections[int(disableid)]
+                    del dv_table[int(disableid)]
+                    dv_table[myid][disableid] = max_int32
+                    print(f"Connection with {disableid} lost.")
+
                     return          
                 else:
                     print(f"Received message from {client_address}: {message}")
@@ -241,7 +242,6 @@ def send_message(server_id, message):
     global connections
     connection = connections[server_id]
     connection[0].sendall(message.encode())
-    #print(f"message sent to: {server_id}")
     return
 
 def connect_to(address, port):
@@ -279,13 +279,14 @@ def display_connections():
 def terminate_connection(connection_id):
     global connections, topology
 
-    send_message(connection_id,"Disable")
+    send_message(connection_id,f"Disable {myid}")
 
     connection = connections[connection_id]
     #time.sleep(1)
     connection[0].close()
     del connections[connection_id]
     del dv_table[connection_id]
+    dv_table[myid][connection_id] = max_int32
     
     print(f"Connection with {connection_id} terminated.")
                 
