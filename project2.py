@@ -108,20 +108,22 @@ def initialize_dv_table():
         
             
 def display_dv_table():
-    global myid, servers, dv_table, max_int32
+    global myid, servers, dv_table, max_int32, connections
 
     print(f"\nDistance Vector Table for Server ID {myid}:")
     header = "   |" + "|".join([f"{server_id:5}" for server_id in sorted(servers)])
     separator = "----+" + "+".join(["-----"] * len(servers))
     print(header)
     print(separator)
-
     for server_id in sorted(servers):
         if server_id in dv_table:
             row = f"{server_id:3} |"
             for neighbor_id in sorted(dv_table[server_id].keys()):
                 if neighbor_id in servers:
                     cost = dv_table[server_id][neighbor_id]
+                    if len(dv_table.keys()) == 1:
+                        cost = max_int32
+
                     if cost == max_int32:
                         cost_str = " inf "
                     else:
@@ -258,7 +260,7 @@ def handle_client(client_socket, client_address, server_id):
                                 return      
                     else:
                         print(f"Received message from {client_address}: {message}")
-                    #display_connections()
+                    
     except:
         pass
             
