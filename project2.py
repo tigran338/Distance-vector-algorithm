@@ -231,18 +231,21 @@ def handle_client(client_socket, client_address, server_id):
                     elif message.startswith("Crash"):
                         if message != last_crash:
                             crashid = int(message.strip().split()[1])
-                            del connections[crashid]
-                            del dv_table[crashid]
+
+                            if crash in connections.keys():
+                                del connections[crashid]
+                                del dv_table[crashid]
+                                print(f"The server {crashid} is crash.")
                             
                             for keys in dv_table.keys():
                                 dv_table[keys][crashid] = max_int32
 
                             dv_table[myid][crashid] = max_int32
-                            print(f"The server {crashid} is crash.")
 
                             
-                            #for neighbor in connections:
-                            #    send_message(neighbor, f"Crash {crashid}")
+                            for connection_id in connections.keys():
+                                 send_message(connection_id, message)
+                                 #print(f"Sent Update to server {connection_id}")
                             
                             last_crash = message
                             return      
@@ -302,7 +305,6 @@ def terminate_connection(connection_id):
     send_message(connection_id,f"Disable {myid}")
 
     connection = connections[connection_id]
-    #time.sleep(1)
     connection[0].close()
     del connections[connection_id]
     del dv_table[connection_id]
@@ -322,6 +324,7 @@ def crash(connection_id):
     del connections[connection_id]
     del dv_table[connection_id]
     dv_table[myid][connection_id] = max_int32
+    
     
     print(f"Connection with {connection_id} terminated.")
 
