@@ -238,6 +238,7 @@ def handle_client(client_socket, client_address, server_id):
                         return     
                     elif message.startswith("Crash"):
                         if message != last_crash:
+                            last_crash = message
                             crashid = int(message.strip().split()[1])
 
                             if crashid in connections.keys():
@@ -255,7 +256,6 @@ def handle_client(client_socket, client_address, server_id):
                                  send_message(connection_id, message)
                                  #print(f"Sent Update to server {connection_id}")
                             
-                            last_crash = message
                             if server_id == crashid:
                                 return      
                     else:
