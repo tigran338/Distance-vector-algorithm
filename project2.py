@@ -43,12 +43,18 @@ def update_topology(update):
     
     if link_1 in dv_table.keys() and link_2 in dv_table.keys():
         if link_1 == int(myid):
-            dv_table[link_1][link_2] = cost
             send_message(int(link_2), message)
         else:
-            dv_table[link_2][link_1] = cost
             send_message(int(link_1), message)
+
+        
+        dv_table[link_1][link_2] = cost
+        dv_table[link_2][link_1] = cost
+        #print(f"<{message}> success")
+        return
     
+    #print(f"<{message}> fail because the link 1 or link 2 is not the neigbor")
+
 
 
     # for connection_id in connections:
@@ -232,7 +238,7 @@ def handle_client(client_socket, client_address, server_id):
                         if message != last_crash:
                             crashid = int(message.strip().split()[1])
 
-                            if crash in connections.keys():
+                            if crashid in connections.keys():
                                 del connections[crashid]
                                 del dv_table[crashid]
                                 print(f"The server {crashid} is crash.")
@@ -248,7 +254,8 @@ def handle_client(client_socket, client_address, server_id):
                                  #print(f"Sent Update to server {connection_id}")
                             
                             last_crash = message
-                            return      
+                            if server_id == crashid:
+                                return      
                     else:
                         print(f"Received message from {client_address}: {message}")
                     #display_connections()
@@ -317,9 +324,9 @@ def crash(connection_id):
     global connections, topology
 
     send_message(connection_id,f"Crash {myid}")
-
+    
+    time.sleep(1)
     connection = connections[connection_id]
-    #time.sleep(1)
     connection[0].close()
     del connections[connection_id]
     del dv_table[connection_id]
@@ -362,7 +369,7 @@ if __name__ == "__main__":
             accept_thread.start()
         elif command == 'packets':
             print(f"Total packets received: {packet_count}")
-        elif command.split(' ')[0] == 'update':
+        elif command.startswith('update'):
             link_1, link_2 = map(int, command.split()[1:3])
             if (command.split()[3] == 'inf'):
                 cost = max_int32
