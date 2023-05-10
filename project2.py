@@ -254,7 +254,6 @@ def handle_client(client_socket, client_address, server_id):
                             
                             for connection_id in connections.keys():
                                  send_message(connection_id, message)
-                                 #print(f"Sent Update to server {connection_id}")
                             
                             if server_id == crashid:
                                 return      
@@ -322,20 +321,26 @@ def terminate_connection(connection_id):
     print(f"Connection with {connection_id} terminated.")
                 
                 
-def crash(connection_id):
+def crash():
     global connections, topology
+    
+    del_connections = list(connections.keys())[:]
 
-    send_message(connection_id,f"Crash {myid}")
+    for id in del_connections:
+        send_message(id,f"Crash {myid}")
+
     
-    time.sleep(1)
-    connection = connections[connection_id]
-    connection[0].close()
-    del connections[connection_id]
-    del dv_table[connection_id]
-    dv_table[myid][connection_id] = max_int32
+    time.sleep(2)
+    for id in del_connections:
+        connection = connections[id]
+        connection[0].close()
+        del connections[id]
+        del dv_table[id]
+        dv_table[myid][id] = max_int32
+        print(f"Connection with {id} terminated.")
     
     
-    print(f"Connection with {connection_id} terminated.")
+    
 
 
 #Main part
@@ -389,10 +394,7 @@ if __name__ == "__main__":
             
             terminate_connection(server_id)
         elif command.startswith("crash"):
-            del_connections = list(connections.keys())[:]
-
-            for id in del_connections:
-                crash(id)
+            crash()
             
             break
 
