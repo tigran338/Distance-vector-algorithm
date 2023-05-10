@@ -121,7 +121,7 @@ def display_dv_table():
             for neighbor_id in sorted(dv_table[server_id].keys()):
                 if neighbor_id in servers:
                     cost = dv_table[server_id][neighbor_id]
-                    if len(dv_table.keys()) == 1:
+                    if len(dv_table.keys()) == 1 and server_id != neighbor_id:
                         cost = max_int32
 
                     if cost == max_int32:
@@ -243,7 +243,7 @@ def handle_client(client_socket, client_address, server_id):
                             if crashid in connections.keys():
                                 del connections[crashid]
                                 del dv_table[crashid]
-                                print(f"The server {crashid} is crash.")
+                            print(f"The server {crashid} is crash.")
                             
                             for keys in dv_table.keys():
                                 dv_table[keys][crashid] = max_int32
