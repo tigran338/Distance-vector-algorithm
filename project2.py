@@ -221,6 +221,7 @@ def handle_client(client_socket, client_address, server_id):
                             neighbor_table[server_id] = cost
                         update_dv_table(sender_id, neighbor_table)
                     elif message.startswith("Update"):
+                        packet_count += 1
                         link_1, link_2 = map(int, message.split()[1:3])
                         if (message.split()[3] == 'inf'):
                             cost = max_int32
